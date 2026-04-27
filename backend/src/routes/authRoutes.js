@@ -33,10 +33,21 @@ const router = express.Router();
  *               name:
  *                 type: string
  *                 description: User full name
+ *               organization:
+ *                 type: object
+ *                 description: Optional organization details created with the user
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   slug:
+ *                     type: string
  *             example:
  *               email: user@example.com
  *               password: Password@123
  *               name: John Doe
+ *               organization:
+ *                 name: John Doe Traders
+ *                 slug: john-doe-traders
  *     responses:
  *       201:
  *         description: User registered successfully
@@ -64,6 +75,15 @@ const router = express.Router();
  *                         createdAt:
  *                           type: string
  *                           format: date-time
+ *                     organization:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         slug:
+ *                           type: string
  *                     token:
  *                       type: string
  *       400:
@@ -125,6 +145,15 @@ router.post("/register", authController.register);
  *                         createdAt:
  *                           type: string
  *                           format: date-time
+ *                     organization:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         slug:
+ *                           type: string
  *                     token:
  *                       type: string
  *       401:

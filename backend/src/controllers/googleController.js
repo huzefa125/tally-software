@@ -2,7 +2,6 @@ const { OAuth2Client } = require("google-auth-library");
 const authService = require("../services/authService");
 const prisma = require("../config/prisma");
 
-// Initialize Google OAuth Client
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -21,35 +20,58 @@ class GoogleController {
         });
       }
 
-      // Verify token with Google
       const ticket = await googleClient.verifyIdToken({
         idToken: token,
         audience: process.env.GOOGLE_CLIENT_ID
       });
 
       const payload = ticket.getPayload();
-      const googleId = payload.sub;
       const email = payload.email;
       const name = payload.name;
 
-      // Find or create user
-      let user = await prisma.user.findUnique({
-        where: { email }
-      });
-
-      if (!user) {
-        // Create new user from Google info
-        user = await prisma.user.create({
-          data: {
-            email,
-            name,
-            password: null // Google users don't have passwords
-          }
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: "Google account email is required"
         });
       }
 
-      // Generate JWT token
-      const jwtToken = authService.generateToken(user);
+      let user = await prisma.user.findUnique({
+        where: { email },
+        include: { org: true }
+      });
+
+      if (!user) {
+        const organizationName = `${name || email.split("@")[0]}'s Organization`;
+        const organizationSlug = authService.buildOrganizationSlug(null, organizationName);
+
+        const result = await prisma.$transaction(async (tx) => {
+          const organization = await tx.organization.create({
+            data: {
+              name: organizationName,
+              slug: organizationSlug
+            }
+          });
+
+          const createdUser = await tx.user.create({
+            data: {
+              email,
+              name,
+              password: null,
+              orgId: organization.id
+            }
+          });
+
+          return { organization, user: createdUser };
+        });
+
+        user = {
+          ...result.user,
+          org: result.organization
+        };
+      }
+
+      const jwtToken = authService.generateToken(user, user.org);
 
       res.status(200).json({
         success: true,
@@ -59,7 +81,8 @@ class GoogleController {
             id: user.id,
             email: user.email,
             name: user.name,
-            createdAt: user.createdAt
+            createdAt: user.createdAt,
+            organization: user.org
           },
           token: jwtToken
         }
@@ -84,18 +107,22 @@ class GoogleController {
         });
       }
 
-      // Verify token with Google
       const ticket = await googleClient.verifyIdToken({
         idToken: token,
         audience: process.env.GOOGLE_CLIENT_ID
       });
 
       const payload = ticket.getPayload();
-      const googleId = payload.sub;
       const email = payload.email;
       const name = customName || payload.name;
 
-      // Check if user already exists
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: "Google account email is required"
+        });
+      }
+
       const existingUser = await prisma.user.findUnique({
         where: { email }
       });
@@ -107,17 +134,35 @@ class GoogleController {
         });
       }
 
-      // Create new user
-      const user = await prisma.user.create({
-        data: {
-          email,
-          name,
-          password: null // Google users don't have passwords
-        }
+      const organizationName = `${name || email.split("@")[0]}'s Organization`;
+      const organizationSlug = authService.buildOrganizationSlug(null, organizationName);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const organization = await tx.organization.create({
+          data: {
+            name: organizationName,
+            slug: organizationSlug
+          }
+        });
+
+        const createdUser = await tx.user.create({
+          data: {
+            email,
+            name,
+            password: null,
+            orgId: organization.id
+          }
+        });
+
+        return { organization, user: createdUser };
       });
 
-      // Generate JWT token
-      const jwtToken = authService.generateToken(user);
+      const user = {
+        ...result.user,
+        org: result.organization
+      };
+
+      const jwtToken = authService.generateToken(user, user.org);
 
       res.status(201).json({
         success: true,
@@ -127,7 +172,8 @@ class GoogleController {
             id: user.id,
             email: user.email,
             name: user.name,
-            createdAt: user.createdAt
+            createdAt: user.createdAt,
+            organization: user.org
           },
           token: jwtToken
         }

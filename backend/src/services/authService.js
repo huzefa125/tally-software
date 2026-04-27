@@ -2,9 +2,10 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
 const { validateEmail, validatePassword, validateName, sanitizeUser } = require("../utils/validators");
+const crypto = require("crypto");
 
 class AuthService {
-  async register(email, password, name) {
+  async register(email, password, name, organizationInput = {}) {
     // Validation
     if (!validateEmail(email)) {
       throw {
@@ -27,6 +28,12 @@ class AuthService {
       };
     }
 
+    const organizationName = this.buildOrganizationName(name, organizationInput.name);
+    const organizationSlug = this.buildOrganizationSlug(
+      organizationInput.slug,
+      organizationName
+    );
+
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
@@ -39,23 +46,48 @@ class AuthService {
       };
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const { user, organization } = await prisma.$transaction(async (tx) => {
+      const slugExists = await tx.organization.findUnique({
+        where: { slug: organizationSlug }
+      });
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name
+      if (organizationInput.slug && slugExists) {
+        throw {
+          status: 409,
+          message: "Organization already exists with this slug"
+        };
       }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create organization first so the JWT can be org-aware from the start
+      const organization = await tx.organization.create({
+        data: {
+          name: organizationName,
+          slug: organizationSlug
+        }
+      });
+
+      // Create user inside that organization
+      const user = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          orgId: organization.id
+        }
+      });
+
+      return { user, organization };
     });
 
     // Generate token
-    const token = this.generateToken(user);
+    const token = this.generateToken(user, organization);
 
     return {
       user: sanitizeUser(user),
+      organization,
       token
     };
   }
@@ -78,7 +110,10 @@ class AuthService {
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email },
+      include: {
+        org: true
+      }
     });
 
     if (!user) {
@@ -99,20 +134,24 @@ class AuthService {
     }
 
     // Generate token
-    const token = this.generateToken(user);
+    const token = this.generateToken(user, user.org);
 
     return {
       user: sanitizeUser(user),
+      organization: user.org,
       token
     };
   }
 
-  generateToken(user) {
+  generateToken(user, organization = null) {
     return jwt.sign(
       {
         id: user.id,
         email: user.email,
-        name: user.name
+        name: user.name,
+        orgId: user.orgId || organization?.id,
+        orgName: organization?.name || user.org?.name || null,
+        orgSlug: organization?.slug || user.org?.slug || null
       },
       process.env.JWT_SECRET,
       {
@@ -123,7 +162,10 @@ class AuthService {
 
   async getUserById(id) {
     const user = await prisma.user.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        org: true
+      }
     });
 
     if (!user) {
@@ -133,7 +175,10 @@ class AuthService {
       };
     }
 
-    return sanitizeUser(user);
+    return {
+      user: sanitizeUser(user),
+      organization: user.org
+    };
   }
 
   async updateUser(id, updates) {
@@ -197,6 +242,38 @@ class AuthService {
     });
 
     return { message: "Password changed successfully" };
+  }
+
+  buildOrganizationName(userName, providedName) {
+    const organizationName = typeof providedName === "string" ? providedName.trim() : "";
+    if (organizationName) {
+      return organizationName;
+    }
+
+    return `${userName.trim()}'s Organization`;
+  }
+
+  buildOrganizationSlug(explicitSlug, sourceValue) {
+    if (typeof explicitSlug === "string" && explicitSlug.trim()) {
+      return String(explicitSlug)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .replace(/-{2,}/g, "-")
+        .slice(0, 100) || "organization";
+    }
+
+    const baseSlug = String(sourceValue || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .replace(/-{2,}/g, "-")
+      .slice(0, 90) || "organization";
+
+    const suffix = crypto.randomBytes(3).toString("hex");
+    return `${baseSlug}-${suffix}`;
   }
 }
 

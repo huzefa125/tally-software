@@ -12,10 +12,37 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  
+  name      String   // org_name
+  address   String?
+  gstin     String?
+
+  contactName String?
+  contactNo   String?
+  countryCode String?
+
+  // relation
+  users     User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid()) @db.Uuid
   name      String?
   email     String   @unique
   password  String?
+
+  role      String   @default("USER")
+  isActive  Boolean  @default(true)
+
+  orgId     String   @db.Uuid
+  org       Organization @relation(fields: [orgId], references: [id])
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
