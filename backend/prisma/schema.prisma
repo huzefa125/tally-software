@@ -26,6 +26,9 @@ model Organization {
 
   // relation
   users     User[]
+  customers Customer[]   // ✅ ADD THIS
+  product   Product[]
+
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -45,4 +48,30 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  phone     String?
+
+  balance   Float    @default(0)
+
+  orgId     String   @db.Uuid
+  org       Organization @relation(fields: [orgId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+
+model Product {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  price     Float
+  costPrice Float?
+
+  orgId     String   @db.Uuid
+  org       Organization @relation(fields: [orgId], references: [id])
+
+  createdAt DateTime @default(now())
 }

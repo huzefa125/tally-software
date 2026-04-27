@@ -6,6 +6,7 @@ const swaggerJsdoc = require("swagger-jsdoc");
 const authRoutes = require("./routes/authRoutes");
 const errorHandler = require("./middleware/errorHandler");
 const logger = require("./middleware/logger");
+const customerRoutes = require("./routes/customer.routes");
 
 const app = express();
 
@@ -62,6 +63,9 @@ app.get("/health", (req, res) => {
 // Routes
 app.use("/api/auth", authRoutes);
 
+// Customer Routes
+app.use("/api/customers", customerRoutes);
+
 // 404 Handler
 app.use((req, res) => {
   res.status(404).json({
@@ -75,8 +79,8 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📚 Swagger docs available at http://localhost:${PORT}/api-docs`);
+  console.log(` Server running on port ${PORT}`);
+  console.log(` Swagger docs available at http://localhost:${PORT}/api-docs`);
 });
 
 module.exports = app;
