@@ -7,6 +7,9 @@ const authRoutes = require("./routes/authRoutes");
 const errorHandler = require("./middleware/errorHandler");
 const logger = require("./middleware/logger");
 const customerRoutes = require("./routes/customer.routes");
+const productRoutes = require("./routes/product.routes");
+const orgRoutes = require("./routes/orgRoutes");
+const invoiceRoutes = require("./routes/invoice.routes");
 
 const app = express();
 
@@ -62,9 +65,10 @@ app.get("/health", (req, res) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
-
-// Customer Routes
 app.use("/api/customers", customerRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/organizations", orgRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
 // 404 Handler
 app.use((req, res) => {

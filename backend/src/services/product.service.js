@@ -1,4 +1,4 @@
-const prisma = require("../prisma/client");
+const prisma = require("../config/prisma");
 
 exports.createProduct = async (data, orgId) => {
     try {
@@ -27,7 +27,7 @@ exports.getAllProducts = async (orgId, search) => {
             },
             orderBy : {createdAt: 'desc'}
         })
-    } catch (error) {
+    } catch (error) { 
         throw error;
     }
 }
