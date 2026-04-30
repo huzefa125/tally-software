@@ -1,0 +1,2 @@
+-- This is a schema-only change to standardize camelCase naming with @map directives
+-- No database changes are needed as columns are already in camelCase

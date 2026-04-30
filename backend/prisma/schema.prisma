@@ -16,91 +16,156 @@ model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   slug      String   @unique
   
-  name      String   // org_name
-  address   String?
-  gstin     String?
+  name      String   @map("name")
+  address   String?  @map("address")
+  gstin     String?  @map("gstin")
 
-  contactName String?
-  contactNo   String?
-  countryCode String?
+  contactName String? @map("contact_name")
+  contactNo   String? @map("contact_no")
+  countryCode String? @map("country_code")
 
-  // relation
   users     User[]
   customers Customer[]   
   products   Product[]
   invoices Invoice[]
+  roles     Role[]
 
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@map("Organization")
 }
 
 model User {
   id        String   @id @default(uuid()) @db.Uuid
-  name      String?
-  email     String   @unique
-  password  String?
+  name      String?  @map("name")
+  email     String   @unique @map("email")
+  password  String?  @map("password")
 
-  role      String   @default("USER")
-  isActive  Boolean  @default(true)
+  roleId    String?  @db.Uuid @map("role_id")
+  role      Role?    @relation("UserRole", fields: [roleId], references: [id], onDelete: SetNull)
+  isActive  Boolean  @default(true) @map("is_active")
 
-  orgId     String   @db.Uuid
+  orgId     String   @db.Uuid @map("org_id")
   org       Organization @relation(fields: [orgId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  rolesCreated Role[] @relation("RoleCreatedBy")
+  rolesUpdated Role[] @relation("RoleUpdatedBy")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("User")
 }
 
 model Customer {
   id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  phone     String?
+  name      String   @map("name")
+  phone     String?  @map("phone")
 
-  balance   Float    @default(0)
+  balance   Float    @default(0) @map("balance")
 
-  orgId     String   @db.Uuid
+  orgId     String   @db.Uuid @map("org_id")
   org       Organization @relation(fields: [orgId], references: [id])
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("Customer")
 }
 
 
 model Product {
   id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  price     Float
-  costPrice Float?
+  name      String   @map("name")
+  price     Float    @map("price")
+  costPrice Float?   @map("cost_price")
 
-  orgId     String   @db.Uuid
+  orgId     String   @db.Uuid @map("org_id")
   org       Organization @relation(fields: [orgId], references: [id])
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("Product")
 }
 
 model Invoice {
   id         String   @id @default(uuid()) @db.Uuid
-  customerId String   @db.Uuid
-  total      Float
-  paid       Float
-  due        Float
+  customerId String   @db.Uuid @map("customer_id")
+  total      Float    @map("total")
+  paid       Float    @map("paid")
+  due        Float    @map("due")
 
-  type       String   // CASH / UDHAAR
+  type       String   @map("type")
 
-  orgId      String   @db.Uuid
+  orgId      String   @db.Uuid @map("org_id")
   org        Organization @relation(fields: [orgId], references: [id])
 
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @map("created_at")
 
   items      InvoiceItem[]
+
+  @@map("Invoice")
 }
 
 model InvoiceItem {
   id        String   @id @default(uuid()) @db.Uuid
-  invoiceId String   @db.Uuid
-  productId String   @db.Uuid
+  invoiceId String   @db.Uuid @map("invoice_id")
+  productId String   @db.Uuid @map("product_id")
 
-  quantity  Int
-  price     Float
+  quantity  Int      @map("quantity")
+  price     Float    @map("price")
 
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("InvoiceItem")
+}
+
+model Role {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(100) @map("name")
+  
+  orgId     String?  @db.Uuid @map("org_id")
+  org       Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  
+  isDefault Boolean  @default(false) @map("is_default")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  createdBy String?  @db.Uuid @map("created_by")
+  updatedBy String?  @db.Uuid @map("updated_by")
+  
+  createdByUser User? @relation("RoleCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedByUser User? @relation("RoleUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+  
+  users     User[]   @relation("UserRole")
+  permissions RolePermission[]
+  
+  @@unique([name, orgId])
+  @@map("Role")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100) @map("name")
+  group       String   @db.VarChar(100) @map("group")
+  displayName String   @db.VarChar(100) @map("display_name")
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  roles       RolePermission[]
+
+  @@map("Permission")
+}
+
+model RolePermission {
+  roleId       String   @db.Uuid @map("role_id")
+  permissionId String   @db.Uuid @map("permission_id")
+  
+  role         Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+  
+  @@id([roleId, permissionId])
+  @@map("RolePermission")
 }
